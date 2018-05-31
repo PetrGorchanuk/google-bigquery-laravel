@@ -1,0 +1,12 @@
+{
+  "type": "service_account",
+  "project_id": "project-2233",
+  "private_key_id": "5u4y342666i54154yqw673c254fa2b4yuqwd6d83120",
+  "private_key": "-----BEGIN PRIVATE KEY-----\wsIX44lurq\nbr3LvzZMphEYOMgj/3DzKusYN5+JugQtc2qg5rcg1NZa/hpFd\n-----END PRIVATE KEY-----\n",
+  "client_email": "service-key@project-2233.iam.gserviceaccount.com",
+  "client_id": "634774377097823782738",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://accounts.google.com/o/oauth2/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/service-key%40project-2233.iam.gserviceaccount.com"
+}
