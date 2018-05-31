@@ -45,7 +45,7 @@ class BigQuery
                 'projectId' => $config['project_id']
             ]);
             
-            $this->config = config('google_big_query.google_big_query');
+            $this->config = config('google_big_query.database');
             $this->defaultDataset = $this->config['database'];
         }
     }
