@@ -11,6 +11,8 @@ use Illuminate\Support\Facades\DB;
 
 class BigQuery
 {
+    use BigQuerySqlTrait;
+    
     /**
      * @var BigQueryClient
      */
@@ -39,7 +41,7 @@ class BigQuery
         if (is_null($this->db)) {
             $configPath = base_path('config/google_big_query.json');
             $config = json_decode(\File::get($configPath), true);
-    
+            
             $this->db = new BigQueryClient([
                 'keyFilePath' => $configPath,
                 'projectId' => $config['project_id']
@@ -81,7 +83,7 @@ class BigQuery
     {
         try {
             $dataSet = $this->dataSet($dataSet);
-    
+            
             $dataSet->createTable($table, [
                 'id' => 'string',
                 'streamingBuffer' => false,
@@ -154,27 +156,6 @@ class BigQuery
     }
     
     /**
-     * @param $builder
-     * @return null|string|string[]
-     */
-    protected function getSql($builder)
-    {
-        $table = $builder->getQuery()->from;
-        
-        $sql = str_replace($table, $this->defaultDataset . '.' . $table, $builder->toSql());
-        foreach ($builder->getBindings() as $binding) {
-            $sql = preg_replace(
-                '/\?/',
-                is_numeric($binding) ? $binding : "'" . $binding . "'",
-                $sql,
-                1
-            );
-        }
-        
-        return $sql;
-    }
-    
-    /**
      * Wrap around Google's BigQuery run method and handle results
      *
      * @param $builder
@@ -186,6 +167,36 @@ class BigQuery
     public function get($builder, $selectWith = [], $options = [])
     {
         return collect($this->getQuery($builder, $selectWith, $options));
+    }
+    
+    /**
+     * Wrap around Google's BigQuery run method and handle results
+     *
+     * @param $builder
+     * @param array $selectWith
+     * @param array $options
+     * @return \Illuminate\Support\Collection
+     * @throws \Google\Cloud\Core\Exception\GoogleException
+     */
+    public function getArray($builder, $selectWith = [], $options = [])
+    {
+        return $this->getQuery($builder, $selectWith, $options);
+    }
+    
+    /**
+     * Wrap around Google's BigQuery run method and handle results
+     *
+     * @param $builder
+     * @param array $selectWith
+     * @param array $options
+     * @return \Illuminate\Support\Collection
+     * @throws \Google\Cloud\Core\Exception\GoogleException
+     */
+    public function first($builder, $selectWith = [], $options = [])
+    {
+        $res = $this->getQuery($builder->limit(1), $selectWith, $options);
+        
+        return !$res ?: $res[0];
     }
     
     
@@ -202,14 +213,10 @@ class BigQuery
         
         // Set default options if nothing is passed in
         $queryResults = $this->db->runQuery(
-            $this->db->query(
-                is_string($builder)
-                    ? $builder
-                    : $this->getSql($builder)
-            ),
+            $this->db->query(is_string($builder) ? $builder : $this->getSql($builder)),
             $options ?? $this->options
         );
-    
+        
         // Setup our result checks
         $isComplete = $queryResults->isComplete();
         while (!$isComplete) {
@@ -217,8 +224,9 @@ class BigQuery
             $queryResults->reload(); // trigger a network request
             $isComplete = $queryResults->isComplete(); // check the query's status
         }
-    
+        
         // Mutate into a laravel collection
+        $data = [];
         foreach ($queryResults->rows() as $row) {
             if (!empty($selectWith)) {
                 $uid = $selectWith['uids'];
@@ -231,11 +239,11 @@ class BigQuery
                     }
                 }
             } else {
-                $data[] = $row;
+                $data[] = (object)$row;
             }
         }
-    
-        return $data ?? [];
+        
+        return $data;
     }
     
     /**
@@ -251,25 +259,25 @@ class BigQuery
             foreach ($selectWith as $sk => $with) {
                 if ($sk !== 'uids') {
                     $alias = explode('->', $sk);
-    
+                    
                     array_walk(
                         $selectWith[$sk],
                         function ($val) use (&$select, $alias) {
                             $select[] = $alias[0] . '.' . $val;
                         }
                     );
-    
+                    
                     foreach ($with as $field) {
                         $pref = explode(' as ', $field);
                         $pref = isset($pref[1]) ? $pref[1] : $pref[0];
-        
+                        
                         $aliases[$pref] = isset($alias[1]) ? $alias[1] : '';
                     }
                 }
             }
-        
+            
             $builder->select($select);
-
+            
             return $aliases;
         }
     }
@@ -309,10 +317,10 @@ class BigQuery
                     $errors[] = $error;
                 }
             }
-    
+            
             return $errors ?? [];
         }
-    
+        
         return true;
     }
     
@@ -374,7 +382,7 @@ class BigQuery
             if (!isset($item['id'])) {
                 $item['id'] = $lastId;
             }
-
+            
             // If we have an id column use Google's insertId
             // https://cloud.google.com/bigquery/streaming-data-into-bigquery#dataconsistency
             if (in_array('id', $item)) {
